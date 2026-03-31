@@ -31,3 +31,31 @@ def test_executor_unknown_tool(tmp_path):
     executor = ToolExecutor(db_path=str(tmp_path / "test.db"))
     result = executor.execute("ferramenta_inexistente", {})
     assert result["success"] is False
+
+
+def test_executor_write_file_within_work_dir(tmp_path):
+    executor = ToolExecutor(db_path=str(tmp_path / "test.db"), work_dir=str(tmp_path))
+    result = executor.execute("write_file", {"path": "output.txt", "content": "dados"})
+    assert result["success"] is True
+    assert (tmp_path / "output.txt").read_text() == "dados"
+
+
+def test_executor_write_file_outside_work_dir_rejected(tmp_path):
+    executor = ToolExecutor(db_path=str(tmp_path / "test.db"), work_dir=str(tmp_path))
+    result = executor.execute("write_file", {"path": "/etc/passwd", "content": "hack"})
+    assert result["success"] is False
+    assert "fora do diretório" in result["error"]
+
+
+def test_executor_query_database_rejects_multi_statement(tmp_path):
+    executor = ToolExecutor(db_path=str(tmp_path / "test.db"), work_dir=str(tmp_path))
+    result = executor.execute("query_database", {"sql": "SELECT 1; DROP TABLE x"})
+    assert result["success"] is False
+    assert "Multi-statements" in result["error"]
+
+
+def test_executor_http_get_rejects_non_http_scheme(tmp_path):
+    executor = ToolExecutor(db_path=str(tmp_path / "test.db"))
+    result = executor.execute("http_get", {"url": "file:///etc/passwd"})
+    assert result["success"] is False
+    assert "http/https" in result["error"]

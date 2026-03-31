@@ -22,25 +22,23 @@ class ProcessAgent:
             "Use as tools disponíveis para completar as tarefas solicitadas. "
             "Seja preciso, eficiente e informe o resultado final claramente."
         )
-        self.messages: list[dict] = []
-
     def run(self, task: str) -> str:
-        self.messages = [{"role": "user", "content": task}]
+        messages: list[dict] = [{"role": "user", "content": task}]
 
-        for iteration in range(self.max_iterations):
+        for _ in range(self.max_iterations):
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=4096,
                 system=self.system_prompt,
                 tools=TOOLS,
-                messages=self.messages,
+                messages=messages,
             )
 
             if response.stop_reason == "end_turn":
                 return self._extract_text(response)
 
             if response.stop_reason == "tool_use":
-                self.messages.append({"role": "assistant", "content": response.content})
+                messages.append({"role": "assistant", "content": response.content})
                 tool_results = []
                 for block in response.content:
                     if block.type == "tool_use":
@@ -50,12 +48,12 @@ class ProcessAgent:
                             "tool_use_id": block.id,
                             "content": json.dumps(result, ensure_ascii=False),
                         })
-                self.messages.append({"role": "user", "content": tool_results})
+                messages.append({"role": "user", "content": tool_results})
                 continue
 
-            break
+            return f"Agente encerrado: stop_reason={response.stop_reason}"
 
-        return "Limite de iterações atingido."
+        return f"Limite de {self.max_iterations} iterações atingido."
 
     def _extract_text(self, response) -> str:
         texts = [b.text for b in response.content if hasattr(b, "text")]
